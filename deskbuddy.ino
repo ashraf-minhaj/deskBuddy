@@ -83,8 +83,8 @@ void lcd_update(bool stat, bool online_stat, String text, String dt){
     delay(200);
   }
   
-  lcd.setCursor(0,0);
-  lcd.print(add_space(asmaul_husna[random(99)], 19 ));
+//  lcd.setCursor(0,0);
+//  lcd.print(add_space(asmaul_husna[random(99)], 19 ));
   //lcd.print(ssid);
 
   lcd.setCursor(18,0);
@@ -127,7 +127,7 @@ void lcd_update(bool stat, bool online_stat, String text, String dt){
     lcd.print(text2);
     }
    if (text.length() <= 20){
-    text1 = add_space(text.substring(0, 20), 20);
+    text1 = add_space(text.substring(0, 20), 21);
     text2 = "                    ";
     lcd.setCursor(0,2);
     lcd.print(text1);
@@ -140,6 +140,40 @@ void lcd_update(bool stat, bool online_stat, String text, String dt){
     lcd.setCursor(19, 0);
     lcd.blink();
   }
+}
+
+int get_time(String url){
+   HTTPClient http;
+   http.begin(url.c_str());
+      
+  // Send HTTP GET request
+  int httpResponseCode = http.GET();
+
+  Serial.print("HTTP Response code: ");
+  Serial.println(httpResponseCode);
+
+  lcd.setCursor(17, 1);
+  lcd.print(httpResponseCode);
+  Serial.println(httpResponseCode);
+
+  if (httpResponseCode == 200) {
+    String payload = http.getString();
+    Serial.println(payload);
+
+    //{"abbreviation":"+06","client_ip":"103.229.86.0","datetime":"2022-09-27T00:55:08.473344+06:00",
+    int start_index = payload.indexOf("datetime");
+    dt = payload.substring(start_index+11, start_index+27);
+    Serial.println(dt);
+    }
+    else {
+      Serial.print("Error code: ");
+      Serial.println(httpResponseCode);
+      }
+      
+   // Free resources
+   http.end();
+
+   return httpResponseCode;
 }
 
 
@@ -204,11 +238,13 @@ void setup() {
 }
  
 void loop() {
+  start:
    bool online_stat     = 0;
    String wifi_stat     = "trying";
    String payload       = "";
    int httpResponseCode = 0;
    dt                   = "";
+//   int interval         = 
    
    
    while (WiFi.status() != WL_CONNECTED) {
@@ -226,51 +262,37 @@ void loop() {
   Serial.println("WiFi Connected");
 
   /* Check time and net */ 
-  HTTPClient http;
-  http.begin(dt_url.c_str());
-      
-  // Send HTTP GET request
-  httpResponseCode = http.GET();
-
-  Serial.print("HTTP Response code: ");
-  Serial.println(httpResponseCode);
-    
-  if (httpResponseCode == 200) {
-    payload = http.getString();
-    Serial.println(payload);
+  int res = get_time(dt_url);
+  if (res < 0){
+    online_stat = 0;
+    delay(1000);
+    lcd_update(1, online_stat, quote, dt);
+    goto start;
+  }
+  if (res > 0){
     online_stat = 1;
-
-    //{"abbreviation":"+06","client_ip":"103.229.86.0","datetime":"2022-09-27T00:55:08.473344+06:00",
-    int start_index = payload.indexOf("datetime");
-    dt = payload.substring(start_index+11, start_index+27);
-    Serial.println(dt);
-    }
-    else {
-      online_stat = 0;
-      Serial.print("Error code: ");
-      Serial.println(httpResponseCode);
-      }
-      
-   // Free resources
-   http.end();
+  }
+  
 
    // check interval
+   
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
-    // save the last time we iterated
-    previousMillis = currentMillis;
+    lcd.setCursor(0,0);
+    lcd.print(add_space(asmaul_husna[random(99)], 19 ));
     
-    Serial.println("Get Quote if net present");
-    if (online_stat != 0){
-      Serial.println("Net present, getting quote");
-      String text = get_quote(act_url);
-      if (text != "none"){
-        quote = text;
-        } 
-      }
-   }
+    if (online_stat == 1){
+       previousMillis = currentMillis;
+     
+       Serial.println("Net present, time for getting quote");
+       String text = get_quote(act_url);
+       if (text != "none"){
+         quote = text;
+         } 
+     }
+  }
   
   
   lcd_update(1, online_stat, quote, dt);
-  delay(5000);
+  delay(10000);
   }
